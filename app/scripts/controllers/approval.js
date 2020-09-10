@@ -32,9 +32,9 @@ export default class ApprovalController {
    * Adds a pending approval per the given arguments, and returns the associated
    * id and approval promise. An internal, default type will be used if none is
    * specified.
-   * 
+   *
    * There can only be one approval per origin and type. An error is thrown if
-   * attempting 
+   * attempting
    *
    * @param {string} id - The id of the approval request.
    * @param {string} origin - The origin of the approval request.
@@ -53,7 +53,7 @@ export default class ApprovalController {
 
     // ensure no approvals exist for given arguments
     if (this._approvals.has(id)) {
-      throw new Error(`Pending approval with id '${id}' already exists.`)
+      throw new Error(`Approval with id '${id}' already exists.`)
     }
     if (this._origins[origin]?.[type]) {
       throw new Error(`Origin '${origin}' already has pending approval${
@@ -189,7 +189,7 @@ export default class ApprovalController {
     const {
       origin,
       type,
-    } = this.get(id) || {}
+    } = this._approvals.get(id)?.[APPROVAL_INFO_KEY] || {}
 
     if (origin && type) {
       delete this._origins[origin]?.[type]
@@ -231,7 +231,10 @@ export default class ApprovalController {
   _isEmptyOrigin (origin) {
     return (
       !this._origins[origin] ||
-      Object.keys(this._origins[origin]).length === 0
+      (
+        !this._origins[origin][DEFAULT_TYPE] && // symbols are non-enumerable
+        Object.keys(this._origins[origin]).length === 0
+      )
     )
   }
 }

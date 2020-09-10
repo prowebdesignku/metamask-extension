@@ -1,6 +1,6 @@
 import nanoid from 'nanoid'
 
-const DEFAULT_CATEGORY = '*'
+const DEFAULT_TYPE = '*'
 const APPROVAL_INFO_KEY = 'info'
 const APPROVAL_CALLBACKS_KEY = '_callbacks'
 
@@ -8,13 +8,13 @@ const APPROVAL_CALLBACKS_KEY = '_callbacks'
  * Data associated with a pending approval.
  * @typedef {Object} ApprovalInfo
  * @property {string} origin - The origin of the approval request.
- * @property {string|'*'} category - The category associated with the
- * approval request. The default category is '*'.
+ * @property {string|'*'} type - The type associated with the approval request.
+ * The default type is '*'.
  */
 
 /**
  * Controller for keeping track of pending approvals by id and/or origin and
- * category pair.
+ * type pair.
  *
  * Useful for managing requests that require user approval, and restricting
  * the number of approvals a particular origin can have pending at any one time.
@@ -33,22 +33,22 @@ export class ApprovalController {
   /**
    * Adds a pending approval per the given arguments, and returns the
    * associated id and approval promise.
-   * There can only be one approval per origin and category. An implicit,
-   * default category will be used if none is specified.
+   * There can only be one approval per origin and type. An implicit,
+   * default type will be used if none is specified.
    *
    * @param {Object} approvalData - Data associated with the approval request.
    * @param {string} [approvalData.id] - The id of the approval request.
    * Generated randomly if not specified.
    * @param {string} approvalData.origin - The origin of the approval request.
-   * @param {string} [approvalData.category] - The category associated with the
+   * @param {string} [approvalData.type] - The type associated with the
    * approval request, if applicable.
    * @returns {Array.<{approvalPromise: Promise, id: string}>} The id and the
    * approval promise.
    */
-  add ({ id = nanoid(), origin, category = DEFAULT_CATEGORY } = {}) {
+  add ({ id = nanoid(), origin, type = DEFAULT_TYPE } = {}) {
     // input validation
-    if (!category) {
-      throw new Error('May not specify falsy category.')
+    if (!type) {
+      throw new Error('May not specify falsy type.')
     }
     if (!origin) {
       throw new Error('Expected origin to be specified.')
@@ -58,19 +58,19 @@ export class ApprovalController {
     if (this._approvals.has(id)) {
       throw new Error(`Pending approval with id '${id}' already exists.`)
     }
-    if (this._origins?.[origin]?.[category] !== undefined) {
+    if (this._origins?.[origin]?.[type] !== undefined) {
       throw new Error(`Origin '${origin}' already has pending approval${
-        category === DEFAULT_CATEGORY ? '.' : ` for category '${category}'.`}`)
+        type === DEFAULT_TYPE ? '.' : ` for type '${type}'.`}`)
     }
 
     // add pending approval
     const approvalPromise = new Promise((resolve, reject) => {
       this._approvals.set(id, {
-        [APPROVAL_INFO_KEY]: { origin, category },
+        [APPROVAL_INFO_KEY]: { origin, type },
         [APPROVAL_CALLBACKS_KEY]: { resolve, reject },
       })
     })
-    this._addPendingApprovalOrigin(origin, category)
+    this._addPendingApprovalOrigin(origin, type)
     return [approvalPromise, id]
   }
 
@@ -80,15 +80,15 @@ export class ApprovalController {
    *
    * @private
    * @param {string} origin - The origin of the approval request.
-   * @param {string} category - The category associated with the
+   * @param {string} type - The type associated with the
    * approval request.
    */
-  _addPendingApprovalOrigin (origin, category) {
+  _addPendingApprovalOrigin (origin, type) {
     if (!this._origins[origin]) {
       this._origins[origin] = {}
     }
 
-    this._origins[origin][category] = true
+    this._origins[origin][type] = true
   }
 
   /**
@@ -156,24 +156,24 @@ export class ApprovalController {
 
   /**
    * Checks if there's a pending approval request for the given id, or origin
-   * and category pair if no id is specified.
-   * If no category is specified, the default category will be used.
+   * and type pair if no id is specified.
+   * If no type is specified, the default type will be used.
    *
    * @param {Object} args - Options bag.
    * @param {string} [args.id] - The id of the approval request.
    * @param {string} [args.origin] - The origin of the approval request.
-   * @param {string} [args.category] - The category of the approval request.
+   * @param {string} [args.type] - The type of the approval request.
    * @returns {boolean} True if an approval is found, false otherwise.
    */
-  has ({ id, origin, category = DEFAULT_CATEGORY } = {}) {
-    if (!category) {
-      throw new Error('May not specify falsy category.')
+  has ({ id, origin, type = DEFAULT_TYPE } = {}) {
+    if (!type) {
+      throw new Error('May not specify falsy type.')
     }
 
     if (id) {
       return this._approvals.has(id)
     } else if (origin) {
-      return Boolean(this._origins?.[origin]?.[category])
+      return Boolean(this._origins?.[origin]?.[type])
     }
     throw new Error('Expected id or origin to be specified.')
   }
@@ -194,11 +194,11 @@ export class ApprovalController {
 
     const {
       origin,
-      category,
+      type,
     } = this.get(id) || {}
 
-    if (origin && category) {
-      delete this._origins?.[origin]?.[category]
+    if (origin && type) {
+      delete this._origins?.[origin]?.[type]
       if (this._isEmptyOrigin(origin)) {
         delete this._origins[origin]
       }

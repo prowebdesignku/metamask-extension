@@ -75,23 +75,6 @@ export class ApprovalController {
   }
 
   /**
-   * Adds an entry to _origins.
-   * Performs no validation.
-   *
-   * @private
-   * @param {string} origin - The origin of the approval request.
-   * @param {string} type - The type associated with the
-   * approval request.
-   */
-  _addPendingApprovalOrigin (origin, type) {
-    if (!this._origins[origin]) {
-      this._origins[origin] = {}
-    }
-
-    this._origins[origin][type] = true
-  }
-
-  /**
    * Approves the approval with the given id, and deletes the approval.
    * Throws an error if no such approval exists.
    *
@@ -112,25 +95,6 @@ export class ApprovalController {
   }
 
   /**
-   * Gets the approval callbacks for the given id, deletes the entry, and then
-   * returns the callbacks for promise resolution.
-   * Throws an error if no approval is found for the given id.
-   *
-   * @private
-   * @param {string} id - The id of the approval request.
-   * @returns {Object|undefined} The pending approval data associated with
-   * the id.
-   */
-  _deleteApprovalAndGetCallbacks (id) {
-    if (!this._approvals.has(id)) {
-      throw new Error(`Approval with id '${id}' not found.`)
-    }
-    const callbacks = this._getApprovalCallbacks(id)
-    this._delete(id)
-    return callbacks
-  }
-
-  /**
    * Gets the pending approval info for the given id.
    *
    * @param {string} id - The id of the approval request.
@@ -139,19 +103,6 @@ export class ApprovalController {
    */
   get (id) {
     return this._approvals.get(id)?.[APPROVAL_INFO_KEY]
-  }
-
-  /**
-   * Gets the pending approval callbacks for the given id.
-   * Performs no validation.
-   *
-   * @private
-   * @param {string} id - The id of the approval request.
-   * @returns {Object|undefined} An object with the approval's resolve and reject
-   * callbacks.
-   */
-  _getApprovalCallbacks (id) {
-    return this._approvals.get(id)[APPROVAL_CALLBACKS_KEY]
   }
 
   /**
@@ -176,6 +127,46 @@ export class ApprovalController {
       return Boolean(this._origins?.[origin]?.[type])
     }
     throw new Error('Expected id or origin to be specified.')
+  }
+
+  /**
+   * Rejects and deletes all pending approval requests.
+   */
+  clear () {
+    for (const id of this._approvals.keys()) {
+      this.reject(id)
+    }
+    this._origins = {}
+  }
+
+  /**
+   * Adds an entry to _origins.
+   * Performs no validation.
+   *
+   * @private
+   * @param {string} origin - The origin of the approval request.
+   * @param {string} type - The type associated with the
+   * approval request.
+   */
+  _addPendingApprovalOrigin (origin, type) {
+    if (!this._origins[origin]) {
+      this._origins[origin] = {}
+    }
+
+    this._origins[origin][type] = true
+  }
+
+  /**
+   * Gets the pending approval callbacks for the given id.
+   * Performs no validation.
+   *
+   * @private
+   * @param {string} id - The id of the approval request.
+   * @returns {Object|undefined} An object with the approval's resolve and reject
+   * callbacks.
+   */
+  _getApprovalCallbacks (id) {
+    return this._approvals.get(id)[APPROVAL_CALLBACKS_KEY]
   }
 
   /**
@@ -207,6 +198,25 @@ export class ApprovalController {
   }
 
   /**
+   * Gets the approval callbacks for the given id, deletes the entry, and then
+   * returns the callbacks for promise resolution.
+   * Throws an error if no approval is found for the given id.
+   *
+   * @private
+   * @param {string} id - The id of the approval request.
+   * @returns {Object|undefined} The pending approval data associated with
+   * the id.
+   */
+  _deleteApprovalAndGetCallbacks (id) {
+    if (!this._approvals.has(id)) {
+      throw new Error(`Approval with id '${id}' not found.`)
+    }
+    const callbacks = this._getApprovalCallbacks(id)
+    this._delete(id)
+    return callbacks
+  }
+
+  /**
    * Internal function for checking if there are no pending approvals
    * associated with the given origin.
    *
@@ -220,15 +230,5 @@ export class ApprovalController {
       !this._origins[origin] ||
       Object.keys(this._origins[origin]).length === 0
     )
-  }
-
-  /**
-   * Rejects and deletes all pending approval requests.
-   */
-  clear () {
-    for (const id of this._approvals.keys()) {
-      this.reject(id)
-    }
-    this._origins = {}
   }
 }

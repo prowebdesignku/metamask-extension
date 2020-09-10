@@ -1,6 +1,9 @@
 import { ethErrors, ERROR_CODES } from 'eth-json-rpc-errors'
 import deepFreeze from 'deep-freeze-strict'
 
+import ApprovalController
+  from '../../../../../app/scripts/controllers/approval'
+
 import _getRestrictedMethods
   from '../../../../../app/scripts/controllers/permissions/restrictedMethods'
 
@@ -76,6 +79,7 @@ const getUnlockPromise = () => Promise.resolve()
  */
 export function getPermControllerOpts () {
   return {
+    approvals: new ApprovalController(),
     showPermissionRequest: noop,
     getKeyringAccounts,
     getUnlockPromise,

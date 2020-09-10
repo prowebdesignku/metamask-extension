@@ -1,15 +1,13 @@
-import nanoid from 'nanoid'
-
-const DEFAULT_TYPE = '*'
-const APPROVAL_INFO_KEY = 'info'
-const APPROVAL_CALLBACKS_KEY = '_callbacks'
+const DEFAULT_TYPE = Symbol('DEFAULT_APPROVAL_TYPE')
+const APPROVAL_INFO_KEY = Symbol('APPROVAL_INFO_KEY')
+const APPROVAL_CALLBACKS_KEY = Symbol('APPROVAL_CALLBACKS_KEY')
 
 /**
  * Data associated with a pending approval.
  * @typedef {Object} ApprovalInfo
  * @property {string} origin - The origin of the approval request.
- * @property {string|'*'} type - The type associated with the approval request.
- * The default type is '*'.
+ * @property {string} [type] - The type associated with the approval request,
+ * if any.
  */
 
 /**
@@ -19,7 +17,7 @@ const APPROVAL_CALLBACKS_KEY = '_callbacks'
  * Useful for managing requests that require user approval, and restricting
  * the number of approvals a particular origin can have pending at any one time.
  */
-export class ApprovalController {
+export default class ApprovalController {
 
   constructor () {
 
@@ -31,67 +29,45 @@ export class ApprovalController {
   }
 
   /**
-   * Adds a pending approval per the given arguments, and returns the
-   * associated id and approval promise.
-   * There can only be one approval per origin and type. An implicit,
-   * default type will be used if none is specified.
+   * Adds a pending approval per the given arguments, and returns the associated
+   * id and approval promise. An internal, default type will be used if none is
+   * specified.
+   * 
+   * There can only be one approval per origin and type. An error is thrown if
+   * attempting 
    *
-   * @param {Object} approvalData - Data associated with the approval request.
-   * @param {string} [approvalData.id] - The id of the approval request.
-   * Generated randomly if not specified.
-   * @param {string} approvalData.origin - The origin of the approval request.
-   * @param {string} [approvalData.type] - The type associated with the
-   * approval request, if applicable.
-   * @returns {Array.<{approvalPromise: Promise, id: string}>} The id and the
-   * approval promise.
+   * @param {string} id - The id of the approval request.
+   * @param {string} origin - The origin of the approval request.
+   * @param {string} [type] - The type associated with the approval request,
+   * if applicable.
+   * @returns {Promise} The approval promise.
    */
-  add ({ id = nanoid(), origin, type = DEFAULT_TYPE } = {}) {
+  add (id, origin, type = DEFAULT_TYPE) {
     // input validation
     if (!type) {
       throw new Error('May not specify falsy type.')
     }
-    if (!origin) {
-      throw new Error('Expected origin to be specified.')
+    if (!id || !origin) {
+      throw new Error('Expected id and origin to be specified.')
     }
 
     // ensure no approvals exist for given arguments
     if (this._approvals.has(id)) {
       throw new Error(`Pending approval with id '${id}' already exists.`)
     }
-    if (this._origins?.[origin]?.[type] !== undefined) {
+    if (this._origins[origin]?.[type]) {
       throw new Error(`Origin '${origin}' already has pending approval${
         type === DEFAULT_TYPE ? '.' : ` for type '${type}'.`}`)
     }
 
     // add pending approval
-    const approvalPromise = new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       this._approvals.set(id, {
         [APPROVAL_INFO_KEY]: { origin, type },
         [APPROVAL_CALLBACKS_KEY]: { resolve, reject },
       })
+      this._addPendingApprovalOrigin(origin, type)
     })
-    this._addPendingApprovalOrigin(origin, type)
-    return [approvalPromise, id]
-  }
-
-  /**
-   * Approves the approval with the given id, and deletes the approval.
-   * Throws an error if no such approval exists.
-   *
-   * @param {string} id - The id of the approval request.
-   */
-  approve (id) {
-    this._deleteApprovalAndGetCallbacks(id).resolve()
-  }
-
-  /**
-   * Rejects the approval with the given id, and deletes the approval.
-   * Throws an error if no such approval exists.
-   *
-   * @param {string} id - The id of the approval request.
-   */
-  reject (id) {
-    this._deleteApprovalAndGetCallbacks(id).reject()
   }
 
   /**
@@ -102,7 +78,13 @@ export class ApprovalController {
    * the id.
    */
   get (id) {
-    return this._approvals.get(id)?.[APPROVAL_INFO_KEY]
+    const info = this._approvals.get(id)?.[APPROVAL_INFO_KEY]
+    if (info) {
+      return info.type === DEFAULT_TYPE
+        ? { origin: info.origin }
+        : { ...info }
+    }
+    return undefined
   }
 
   /**
@@ -124,9 +106,31 @@ export class ApprovalController {
     if (id) {
       return this._approvals.has(id)
     } else if (origin) {
-      return Boolean(this._origins?.[origin]?.[type])
+      return Boolean(this._origins[origin]?.[type])
     }
     throw new Error('Expected id or origin to be specified.')
+  }
+
+  /**
+   * Resolves the promise of the approval with the given id, and deletes the
+   * approval. Throws an error if no such approval exists.
+   *
+   * @param {string} id - The id of the approval request.
+   * @param {any} value - The value to resolve the approval promise with.
+   */
+  resolve (id, value) {
+    this._deleteApprovalAndGetCallbacks(id).resolve(value)
+  }
+
+  /**
+   * Rejects the promise of the approval with the given id, and deletes the
+   * approval. Throws an error if no such approval exists.
+   *
+   * @param {string} id - The id of the approval request.
+   * @param {Error} error - The error to reject the approval promise with.
+   */
+  reject (id, error) {
+    this._deleteApprovalAndGetCallbacks(id).reject(error)
   }
 
   /**
@@ -152,7 +156,6 @@ export class ApprovalController {
     if (!this._origins[origin]) {
       this._origins[origin] = {}
     }
-
     this._origins[origin][type] = true
   }
 
@@ -172,8 +175,8 @@ export class ApprovalController {
   /**
    * Deletes the approval with the given id. The approval promise must be
    * resolved or reject before this method is called.
-   * Deletion is an internal operation because approval state is wholly and
-   * solely managed by this controller.
+   * Deletion is an internal operation because approval state is solely
+   * managed by this controller.
    *
    * @private
    * @param {string} id - The id of the approval request to be deleted.
@@ -189,7 +192,7 @@ export class ApprovalController {
     } = this.get(id) || {}
 
     if (origin && type) {
-      delete this._origins?.[origin]?.[type]
+      delete this._origins[origin]?.[type]
       if (this._isEmptyOrigin(origin)) {
         delete this._origins[origin]
       }
@@ -217,8 +220,8 @@ export class ApprovalController {
   }
 
   /**
-   * Internal function for checking if there are no pending approvals
-   * associated with the given origin.
+   * Checks whether there are any pending approvals associated with the given
+   * origin.
    *
    * @private
    * @param {string} origin - The origin to check.

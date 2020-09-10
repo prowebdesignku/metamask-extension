@@ -32,6 +32,7 @@ import createOriginMiddleware from './lib/createOriginMiddleware'
 import createTabIdMiddleware from './lib/createTabIdMiddleware'
 import createOnboardingMiddleware from './lib/createOnboardingMiddleware'
 import { setupMultiplex } from './lib/stream-utils'
+import ApprovalController from './controllers/approval'
 import EnsController from './controllers/ens'
 import NetworkController from './controllers/network'
 import PreferencesController from './controllers/preferences'
@@ -103,6 +104,8 @@ export default class MetamaskController extends EventEmitter {
 
     // next, we will initialize the controllers
     // controller initialization order matters
+
+    this.approvalController = new ApprovalController()
 
     this.networkController = new NetworkController(initState.NetworkController)
     this.networkController.setInfuraProjectId(opts.infuraProjectId)
@@ -211,6 +214,7 @@ export default class MetamaskController extends EventEmitter {
     this.keyringController.on('unlock', () => this.emit('unlock'))
 
     this.permissionsController = new PermissionsController({
+      approvals: this.approvalController,
       getKeyringAccounts: this.keyringController.getAccounts.bind(this.keyringController),
       getRestrictedMethods,
       getUnlockPromise: this.appStateController.getUnlockPromise.bind(this.appStateController),

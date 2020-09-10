@@ -1,4 +1,6 @@
 
+export const APPROVAL_TYPE = 'permissionsRequest'
+
 export const WALLET_PREFIX = 'wallet_'
 
 export const HISTORY_STORE_KEY = 'permissionsHistory'

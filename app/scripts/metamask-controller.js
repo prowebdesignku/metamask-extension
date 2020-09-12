@@ -105,7 +105,9 @@ export default class MetamaskController extends EventEmitter {
     // next, we will initialize the controllers
     // controller initialization order matters
 
-    this.approvalController = new ApprovalController()
+    this.approvalController = new ApprovalController({
+      showApprovalRequest: opts.showApprovalRequest,
+    })
 
     this.networkController = new NetworkController(initState.NetworkController)
     this.networkController.setInfuraProjectId(opts.infuraProjectId)
@@ -221,7 +223,6 @@ export default class MetamaskController extends EventEmitter {
       notifyDomain: this.notifyConnections.bind(this),
       notifyAllDomains: this.notifyAllConnections.bind(this),
       preferences: this.preferencesController.store,
-      showPermissionRequest: opts.showPermissionRequest,
     }, initState.PermissionsController, initState.PermissionsMetadata)
 
     this.detectTokensController = new DetectTokensController({

@@ -1,5 +1,6 @@
 import { strict as assert } from 'assert'
 import sinon from 'sinon'
+import { ERROR_CODES } from 'eth-json-rpc-errors'
 
 import ApprovalController
   from '../../../../app/scripts/controllers/approval'
@@ -115,7 +116,7 @@ describe('approval controller', function () {
       assert.throws(
         () => approvalController.add(),
         getMissingIdAndOriginError(),
-        'should throw on falsy id and origin',
+        'should throw on falsy id',
       )
 
       assert.throws(
@@ -126,8 +127,31 @@ describe('approval controller', function () {
 
       assert.throws(
         () => approvalController.add('foo', 'bar.baz', null),
-        getNoFalsyTypeError(),
+        getNoFalsyTypeError(ERROR_CODES.rpc.internal),
         'should throw on falsy type',
+      )
+    })
+  })
+
+  // almost wholly tested by 'add' above
+  describe('addAndShowApprovalRequest', function () {
+    it('calls expected methods', async function () {
+      const approvalController = new ApprovalController({
+        showApprovalRequest: sinon.spy(),
+      })
+      approvalController.add = sinon.fake.returns(Promise.resolve(true))
+
+      const result = await approvalController.addAndShowApprovalRequest(
+        'foo', 'bar.baz', 'myType',
+      )
+      assert.equal(result, true, 'should return expected result')
+      assert.ok(
+        approvalController.add.calledOnceWithExactly('foo', 'bar.baz', 'myType'),
+        'should have called add with expected arguments',
+      )
+      assert.ok(
+        approvalController._showApprovalRequest.calledOnce,
+        'should have called _showApprovalRequest once',
       )
     })
   })
@@ -580,35 +604,38 @@ describe('approval controller', function () {
 
 // helpers
 
-function getNoFalsyTypeError () {
-  return getError('May not specify falsy type.')
+function getNoFalsyTypeError (code) {
+  return getError('May not specify falsy type.', code)
 }
 
 function getMissingIdAndOriginError () {
-  return getError('Expected id and origin to be specified.')
+  return getError('Must specify id and origin.', ERROR_CODES.rpc.internal)
 }
 
 function getIdCollisionError (id) {
-  return getError(`Approval with id '${id}' already exists.`)
+  return getError(`Approval with id '${id}' already exists.`, ERROR_CODES.rpc.internal)
 }
 
 function getOriginTypeCollisionError (origin, type = '_default') {
-  const message = `Origin '${origin}' already has pending approval${
-    type === '_default' ? '.' : ` for type '${type}'.`}`
-  return getError(message)
+  const message = `Request${type === '_default' ? '' : ` of type '${type}'`} already pending for origin ${origin}. Please wait.`
+  return getError(message, ERROR_CODES.rpc.resourceUnavailable)
 }
 
 function getMissingIdOrOriginError () {
-  return getError('Expected id or origin to be specified.')
+  return getError('Must specify id or origin.')
 }
 
 function getIdNotFoundError (id) {
   return getError(`Approval with id '${id}' not found.`)
 }
 
-function getError (message) {
-  return {
+function getError (message, code) {
+  const err = {
     name: 'Error',
     message,
   }
+  if (code !== undefined) {
+    err.code = code
+  }
+  return err
 }

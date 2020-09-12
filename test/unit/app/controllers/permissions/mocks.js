@@ -79,8 +79,9 @@ const getUnlockPromise = () => Promise.resolve()
  */
 export function getPermControllerOpts () {
   return {
-    approvals: new ApprovalController(),
-    showPermissionRequest: noop,
+    approvals: new ApprovalController({
+      showApprovalRequest: noop,
+    }),
     getKeyringAccounts,
     getUnlockPromise,
     getRestrictedMethods,
@@ -438,9 +439,9 @@ export const getters = deepFreeze({
           message: `Pending approval with id '${id}' or origin '${origin}' already exists.`,
         }
       },
-      requestAlreadyPending: () => {
+      requestAlreadyPending: (origin) => {
         return {
-          message: 'Permissions request already pending; please wait.',
+          message: `Request of type 'wallet_requestPermissions' already pending for origin ${origin}. Please wait.`,
         }
       },
     },

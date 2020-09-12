@@ -1,6 +1,12 @@
+import { ethErrors } from 'eth-json-rpc-errors'
+
 const DEFAULT_TYPE = Symbol('DEFAULT_APPROVAL_TYPE')
 const APPROVAL_INFO_KEY = Symbol('APPROVAL_INFO_KEY')
 const APPROVAL_CALLBACKS_KEY = Symbol('APPROVAL_CALLBACKS_KEY')
+
+const getAlreadyPendingMessage = (origin, type) => (
+  `Request ${type === DEFAULT_TYPE ? '' : `of type '${type}' `}already pending for origin ${origin}. Please wait.`
+)
 
 /**
  * Data associated with a pending approval.
@@ -19,13 +25,41 @@ const APPROVAL_CALLBACKS_KEY = Symbol('APPROVAL_CALLBACKS_KEY')
  */
 export default class ApprovalController {
 
-  constructor () {
+  /**
+   * @param {Object} opts - Options bag
+   * @param {Function} opts.showApprovalRequest - Function for opening the
+   * MetaMask user confirmation UI.
+   */
+  constructor ({ showApprovalRequest } = {}) {
 
     /** @private */
     this._approvals = new Map()
 
     /** @private */
     this._origins = {}
+
+    /** @private */
+    this._showApprovalRequest = showApprovalRequest
+  }
+
+  /**
+   * Adds a pending approval per the given arguments, opens the MetaMask user
+   * confirmation UI, and returns the associated id and approval promise.
+   * An internal, default type will be used if none is specified.
+   *
+   * There can only be one approval per origin and type. An error is thrown if
+   * attempting
+   *
+   * @param {string} id - The id of the approval request.
+   * @param {string} origin - The origin of the approval request.
+   * @param {string} [type] - The type associated with the approval request,
+   * if applicable.
+   * @returns {Promise} The approval promise.
+   */
+  addAndShowApprovalRequest (id, origin, type = DEFAULT_TYPE) {
+    const promise = this.add(id, origin, type)
+    this._showApprovalRequest()
+    return promise
   }
 
   /**
@@ -43,21 +77,12 @@ export default class ApprovalController {
    * @returns {Promise} The approval promise.
    */
   add (id, origin, type = DEFAULT_TYPE) {
-    // input validation
-    if (!type) {
-      throw new Error('May not specify falsy type.')
-    }
-    if (!id || !origin) {
-      throw new Error('Expected id and origin to be specified.')
-    }
+    this._validateAddParams(id, origin, type)
 
-    // ensure no approvals exist for given arguments
-    if (this._approvals.has(id)) {
-      throw new Error(`Approval with id '${id}' already exists.`)
-    }
     if (this._origins[origin]?.[type]) {
-      throw new Error(`Origin '${origin}' already has pending approval${
-        type === DEFAULT_TYPE ? '.' : ` for type '${type}'.`}`)
+      throw ethErrors.rpc.resourceUnavailable(
+        getAlreadyPendingMessage(origin, type),
+      )
     }
 
     // add pending approval
@@ -68,6 +93,21 @@ export default class ApprovalController {
       })
       this._addPendingApprovalOrigin(origin, type)
     })
+  }
+
+  _validateAddParams (id, origin, type) {
+    let errorMessage = null
+    if (!id || !origin) {
+      errorMessage = 'Must specify id and origin.'
+    } else if (this._approvals.has(id)) {
+      errorMessage = `Approval with id '${id}' already exists.`
+    } else if (!type) {
+      errorMessage = 'May not specify falsy type.'
+    }
+
+    if (errorMessage) {
+      throw ethErrors.rpc.internal(errorMessage)
+    }
   }
 
   /**
@@ -108,7 +148,7 @@ export default class ApprovalController {
     } else if (origin) {
       return Boolean(this._origins[origin]?.[type])
     }
-    throw new Error('Expected id or origin to be specified.')
+    throw new Error('Must specify id or origin.')
   }
 
   /**

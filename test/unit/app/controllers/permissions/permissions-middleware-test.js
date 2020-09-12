@@ -361,8 +361,6 @@ describe('permissions middleware', function () {
 
       createApprovalSpies(permController)
 
-      const expectedError = ERRORS.pendingApprovals.requestAlreadyPending()
-
       // two middlewares for two origins
 
       const aMiddleware = getPermissionsMiddleware(permController, DOMAINS.a.origin)
@@ -415,6 +413,8 @@ describe('permissions middleware', function () {
 
       userApprovalPromise = getUserApprovalPromise(permController)
 
+      const expectedError = ERRORS.pendingApprovals.requestAlreadyPending(DOMAINS.a.origin)
+
       const requestApprovalFail = assert.rejects(
         aMiddleware(reqA2, resA2),
         expectedError,
@@ -432,9 +432,13 @@ describe('permissions middleware', function () {
         'response should have expected error and no result',
       )
 
-      assert.ok(
-        permController.approvals.add.calledTwice,
-        'should not have added further approval requests',
+      assert.equal(
+        permController.approvals.add.callCount, 3,
+        'should have attempted to create three pending approvals',
+      )
+      assert.equal(
+        permController.approvals._approvals.size, 2,
+        'should only have created two pending approvals'
       )
 
       // now, remaining pending requests should be approved without issue
@@ -749,7 +753,7 @@ describe('permissions middleware', function () {
       // this will reject because of the already pending request
       await assert.rejects(
         cMiddleware({ ...req }, {}),
-        ERRORS.eth_requestAccounts.requestAlreadyPending(),
+        ERRORS.eth_requestAccounts.requestAlreadyPending(DOMAINS.c.origin),
       )
 
       // now unlock and let through the first request

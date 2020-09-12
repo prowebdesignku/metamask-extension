@@ -35,7 +35,6 @@ export class PermissionsController {
       notifyDomain,
       notifyAllDomains,
       preferences,
-      showPermissionRequest,
     } = {},
     restoredPermissions = {},
     restoredState = {},
@@ -51,7 +50,6 @@ export class PermissionsController {
     this._getUnlockPromise = getUnlockPromise
     this._notifyDomain = notifyDomain
     this._notifyAllDomains = notifyAllDomains
-    this._showPermissionRequest = showPermissionRequest
 
     this._restrictedMethods = getRestrictedMethods({
       getKeyringAccounts: this.getKeyringAccounts.bind(this),
@@ -690,16 +688,10 @@ export class PermissionsController {
       requestUserApproval: async (req) => {
         const { metadata: { id, origin } } = req
 
-        if (this.approvals.has({ origin, type: APPROVAL_TYPE })) {
-          throw ethErrors.rpc.resourceUnavailable(
-            'Permissions request already pending; please wait.',
-          )
-        }
-
-        this._showPermissionRequest()
-
-        return this.approvals.add(
-          id, origin, APPROVAL_TYPE,
+        return this.approvals.addAndShowApprovalRequest(
+          id,
+          origin,
+          APPROVAL_TYPE,
         )
       },
     }, initState)

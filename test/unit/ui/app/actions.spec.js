@@ -43,8 +43,7 @@ describe('Actions', function () {
       platform: { getVersion: () => 'foo' },
       provider,
       keyringController: new KeyringController({}),
-      showUnapprovedTx: noop,
-      showUnconfirmedMessage: noop,
+      showUserConfirmation: noop,
       encryptor: {
         encrypt (_, object) {
           this.object = object

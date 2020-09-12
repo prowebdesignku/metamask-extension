@@ -106,7 +106,7 @@ export default class MetamaskController extends EventEmitter {
     // controller initialization order matters
 
     this.approvalController = new ApprovalController({
-      showApprovalRequest: opts.showApprovalRequest,
+      showApprovalRequest: opts.showUserConfirmation,
     })
 
     this.networkController = new NetworkController(initState.NetworkController)
@@ -138,7 +138,7 @@ export default class MetamaskController extends EventEmitter {
       isUnlocked: this.isUnlocked.bind(this),
       initState: initState.AppStateController,
       onInactiveTimeout: () => this.setLocked(),
-      showUnlockRequest: opts.showUnlockRequest,
+      showUnlockRequest: opts.showUserConfirmation,
       preferencesStore: this.preferencesController.store,
     })
 
@@ -261,7 +261,7 @@ export default class MetamaskController extends EventEmitter {
       trackSegmentEvent: this.trackSegmentEvent,
       getParticipateInMetrics: () => this.preferencesController.getParticipateInMetaMetrics(),
     })
-    this.txController.on('newUnapprovedTx', () => opts.showUnapprovedTx())
+    this.txController.on('newUnapprovedTx', () => opts.showUserConfirmation())
 
     this.txController.on(`tx:status-update`, async (txId, status) => {
       if (status === 'confirmed' || status === 'failed') {
@@ -1131,7 +1131,7 @@ export default class MetamaskController extends EventEmitter {
   newUnsignedMessage (msgParams, req) {
     const promise = this.messageManager.addUnapprovedMessageAsync(msgParams, req)
     this.sendUpdate()
-    this.opts.showUnconfirmedMessage()
+    this.opts.showUserConfirmation()
     return promise
   }
 
@@ -1190,7 +1190,7 @@ export default class MetamaskController extends EventEmitter {
   async newUnsignedPersonalMessage (msgParams, req) {
     const promise = this.personalMessageManager.addUnapprovedMessageAsync(msgParams, req)
     this.sendUpdate()
-    this.opts.showUnconfirmedMessage()
+    this.opts.showUserConfirmation()
     return promise
   }
 
@@ -1245,7 +1245,7 @@ export default class MetamaskController extends EventEmitter {
   async newRequestDecryptMessage (msgParams, req) {
     const promise = this.decryptMessageManager.addUnapprovedMessageAsync(msgParams, req)
     this.sendUpdate()
-    this.opts.showUnconfirmedMessage()
+    this.opts.showUserConfirmation()
     return promise
   }
 
@@ -1330,7 +1330,7 @@ export default class MetamaskController extends EventEmitter {
   async newRequestEncryptionPublicKey (msgParams, req) {
     const promise = this.encryptionPublicKeyManager.addUnapprovedMessageAsync(msgParams, req)
     this.sendUpdate()
-    this.opts.showUnconfirmedMessage()
+    this.opts.showUserConfirmation()
     return promise
   }
 
@@ -1387,7 +1387,7 @@ export default class MetamaskController extends EventEmitter {
   newUnsignedTypedMessage (msgParams, req, version) {
     const promise = this.typedMessageManager.addUnapprovedMessageAsync(msgParams, req, version)
     this.sendUpdate()
-    this.opts.showUnconfirmedMessage()
+    this.opts.showUserConfirmation()
     return promise
   }
 

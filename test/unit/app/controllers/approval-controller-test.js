@@ -5,9 +5,12 @@ import { ERROR_CODES } from 'eth-json-rpc-errors'
 import ApprovalController
   from '../../../../app/scripts/controllers/approval'
 
+const STORE_KEY = 'pendingApprovals'
+
 describe('approval controller', function () {
 
-  describe('add', function () {
+  // the public add signatures are thin wrappers around this internal method
+  describe('_add', function () {
 
     let approvalController
 
@@ -17,7 +20,7 @@ describe('approval controller', function () {
 
     it('adds correctly specified entry', function () {
       assert.doesNotThrow(
-        () => approvalController.add('foo', 'bar.baz'),
+        () => approvalController._add('foo', 'bar.baz'),
         'should add entry',
       )
 
@@ -25,11 +28,29 @@ describe('approval controller', function () {
         approvalController.has({ id: 'foo' }),
         'should have added entry',
       )
+      assert.deepEqual(
+        approvalController.store.getState()[STORE_KEY],
+        { 'foo': { origin: 'bar.baz' } },
+        'should have added entry to store',
+      )
+    })
+
+    it('adds id if non provided', function () {
+      assert.doesNotThrow(
+        () => approvalController._add(undefined, 'bar.baz'),
+        'should add entry',
+      )
+
+      const id = approvalController._approvals.keys().next().value
+      assert.ok(
+        id && typeof id === 'string',
+        'should have added entry with string id',
+      )
     })
 
     it('adds correctly specified entry with custom type', function () {
       assert.doesNotThrow(
-        () => approvalController.add('foo', 'bar.baz', 'myType'),
+        () => approvalController._add('foo', 'bar.baz', 'myType'),
       )
 
       assert.ok(
@@ -40,6 +61,31 @@ describe('approval controller', function () {
         approvalController.has({ origin: 'bar.baz', type: 'myType' }),
         'should have added entry',
       )
+      assert.deepEqual(
+        approvalController.store.getState()[STORE_KEY],
+        { 'foo': { origin: 'bar.baz', type: 'myType' } },
+        'should have added entry to store',
+      )
+    })
+
+    it('adds correctly specified entry with request data', function () {
+      assert.doesNotThrow(
+        () => approvalController._add('foo', 'bar.baz', undefined, { foo: 'bar' }),
+      )
+
+      assert.ok(
+        approvalController.has({ id: 'foo' }),
+        'should have added entry',
+      )
+      assert.ok(
+        approvalController.has({ origin: 'bar.baz' }),
+        'should have added entry',
+      )
+      assert.deepEqual(
+        approvalController.store.getState()[STORE_KEY].foo.requestData,
+        { foo: 'bar' },
+        'should have added entry with correct request data',
+      )
     })
 
     it('adds multiple entries for same origin with different types and ids', function () {
@@ -47,15 +93,15 @@ describe('approval controller', function () {
       const ORIGIN = 'bar.baz'
 
       assert.doesNotThrow(
-        () => approvalController.add('foo1', ORIGIN),
+        () => approvalController._add('foo1', ORIGIN),
         'should add entry',
       )
       assert.doesNotThrow(
-        () => approvalController.add('foo2', ORIGIN, 'myType1'),
+        () => approvalController._add('foo2', ORIGIN, 'myType1'),
         'should add entry',
       )
       assert.doesNotThrow(
-        () => approvalController.add('foo3', ORIGIN, 'myType2'),
+        () => approvalController._add('foo3', ORIGIN, 'myType2'),
         'should add entry',
       )
 
@@ -75,12 +121,12 @@ describe('approval controller', function () {
 
     it('throws on id collision', function () {
       assert.doesNotThrow(
-        () => approvalController.add('foo', 'bar.baz'),
+        () => approvalController._add('foo', 'bar.baz'),
         'should add entry',
       )
 
       assert.throws(
-        () => approvalController.add('foo', 'fizz.buzz'),
+        () => approvalController._add('foo', 'fizz.buzz'),
         getIdCollisionError('foo'),
         'should have thrown expected error',
       )
@@ -88,12 +134,12 @@ describe('approval controller', function () {
 
     it('throws on origin and default type collision', function () {
       assert.doesNotThrow(
-        () => approvalController.add('foo', 'bar.baz'),
+        () => approvalController._add('foo', 'bar.baz'),
         'should add entry',
       )
 
       assert.throws(
-        () => approvalController.add('foo1', 'bar.baz'),
+        () => approvalController._add('foo1', 'bar.baz'),
         getOriginTypeCollisionError('bar.baz'),
         'should have thrown expected error',
       )
@@ -101,12 +147,12 @@ describe('approval controller', function () {
 
     it('throws on origin and custom type collision', function () {
       assert.doesNotThrow(
-        () => approvalController.add('foo', 'bar.baz', 'myType'),
+        () => approvalController._add('foo', 'bar.baz', 'myType'),
         'should add entry',
       )
 
       assert.throws(
-        () => approvalController.add('foo1', 'bar.baz', 'myType'),
+        () => approvalController._add('foo1', 'bar.baz', 'myType'),
         getOriginTypeCollisionError('bar.baz', 'myType'),
         'should have thrown expected error',
       )
@@ -114,39 +160,69 @@ describe('approval controller', function () {
 
     it('validates input', function () {
       assert.throws(
-        () => approvalController.add(),
-        getMissingIdAndOriginError(),
+        () => approvalController._add(null),
+        getNoFalsyIdError(),
         'should throw on falsy id',
       )
 
       assert.throws(
-        () => approvalController.add('foo'),
-        getMissingIdAndOriginError(),
+        () => approvalController._add('foo'),
+        getMissingOriginError(),
         'should throw on falsy origin',
       )
 
       assert.throws(
-        () => approvalController.add('foo', 'bar.baz', null),
+        () => approvalController._add('foo', 'bar.baz', null),
         getNoFalsyTypeError(ERROR_CODES.rpc.internal),
         'should throw on falsy type',
+      )
+
+      assert.throws(
+        () => approvalController._add('foo', 'bar.baz', 'myType', 'foo'),
+        getInvalidRequestDataError(),
+        'should throw on non-object requestData',
       )
     })
   })
 
   // almost wholly tested by 'add' above
-  describe('addAndShowApprovalRequest', function () {
-    it('calls expected methods', async function () {
+  describe('_add wrappers', function () {
+    it('add: calls expected methods, marshals parameters', async function () {
+      const approvalController = new ApprovalController()
+      approvalController._add = sinon.fake.returns(Promise.resolve(true))
+
+      const result = await approvalController.add({
+        id: 'foo',
+        origin: 'bar.baz',
+        type: 'myType',
+        requestData: { foo: 'bar' },
+      })
+      assert.equal(result, true, 'should return expected result')
+      assert.ok(
+        approvalController._add.calledOnceWith(
+          'foo', 'bar.baz', 'myType', { foo: 'bar' },
+        ),
+        'should have called add with expected arguments',
+      )
+    })
+
+    it('addAndShowApprovalRequest: calls expected methods, marshals parameters', async function () {
       const approvalController = new ApprovalController({
         showApprovalRequest: sinon.spy(),
       })
-      approvalController.add = sinon.fake.returns(Promise.resolve(true))
+      approvalController._add = sinon.fake.returns(Promise.resolve(true))
 
-      const result = await approvalController.addAndShowApprovalRequest(
-        'foo', 'bar.baz', 'myType',
-      )
+      const result = await approvalController.addAndShowApprovalRequest({
+        id: 'foo',
+        origin: 'bar.baz',
+        type: 'myType',
+        requestData: { foo: 'bar' },
+      })
       assert.equal(result, true, 'should return expected result')
       assert.ok(
-        approvalController.add.calledOnceWithExactly('foo', 'bar.baz', 'myType'),
+        approvalController._add.calledOnceWith(
+          'foo', 'bar.baz', 'myType', { foo: 'bar' },
+        ),
         'should have called add with expected arguments',
       )
       assert.ok(
@@ -165,7 +241,7 @@ describe('approval controller', function () {
     })
 
     it('gets entry with default type', function () {
-      approvalController.add('foo', 'bar.baz')
+      approvalController.add({ id: 'foo', origin: 'bar.baz' })
 
       assert.deepEqual(
         approvalController.get('foo'), { origin: 'bar.baz' },
@@ -174,7 +250,7 @@ describe('approval controller', function () {
     })
 
     it('gets entry with custom type', function () {
-      approvalController.add('foo', 'bar.baz', 'myType')
+      approvalController.add({ id: 'foo', origin: 'bar.baz', type: 'myType' })
 
       assert.deepEqual(
         approvalController.get('foo'), { origin: 'bar.baz', type: 'myType' },
@@ -183,7 +259,7 @@ describe('approval controller', function () {
     })
 
     it('returns undefined for non-existing entry', function () {
-      approvalController.add('foo', 'bar.baz')
+      approvalController.add({ id: 'foo', origin: 'bar.baz' })
 
       assert.equal(
         approvalController.get('fizz'),
@@ -214,7 +290,7 @@ describe('approval controller', function () {
     })
 
     it('returns true for existing entry by id', function () {
-      approvalController.add('foo', 'bar.baz')
+      approvalController.add({ id: 'foo', origin: 'bar.baz' })
 
       assert.equal(
         approvalController.has({ id: 'foo' }),
@@ -224,7 +300,7 @@ describe('approval controller', function () {
     })
 
     it('returns true for existing entry by origin', function () {
-      approvalController.add('foo', 'bar.baz')
+      approvalController.add({ id: 'foo', origin: 'bar.baz' })
 
       assert.equal(
         approvalController.has({ origin: 'bar.baz' }),
@@ -234,7 +310,7 @@ describe('approval controller', function () {
     })
 
     it('returns true for existing entry by origin and custom type', function () {
-      approvalController.add('foo', 'bar.baz', 'myType')
+      approvalController.add({ id: 'foo', origin: 'bar.baz', type: 'myType' })
 
       assert.equal(
         approvalController.has({ origin: 'bar.baz', type: 'myType' }),
@@ -244,7 +320,7 @@ describe('approval controller', function () {
     })
 
     it('returns false for non-existing entry by id', function () {
-      approvalController.add('foo', 'bar.baz')
+      approvalController.add({ id: 'foo', origin: 'bar.baz' })
 
       assert.equal(
         approvalController.has({ id: 'fizz' }),
@@ -254,7 +330,7 @@ describe('approval controller', function () {
     })
 
     it('returns false for non-existing entry by origin', function () {
-      approvalController.add('foo', 'bar.baz')
+      approvalController.add({ id: 'foo', origin: 'bar.baz' })
 
       assert.equal(
         approvalController.has({ origin: 'fizz.buzz' }),
@@ -264,7 +340,7 @@ describe('approval controller', function () {
     })
 
     it('returns false for non-existing entry by origin and type', function () {
-      approvalController.add('foo', 'bar.baz')
+      approvalController.add({ id: 'foo', origin: 'bar.baz' })
 
       assert.equal(
         approvalController.has({ origin: 'bar.baz', type: 'myType' }),
@@ -299,22 +375,23 @@ describe('approval controller', function () {
     })
 
     it('deletes entry', function () {
-      approvalController.add('foo', 'bar.baz')
+      approvalController.add({ id: 'foo', origin: 'bar.baz' })
 
       approvalController._delete('foo')
 
       assert.ok(
         (
           !approvalController.has({ id: 'foo' }) &&
-          !approvalController.has({ origin: 'bar.baz' })
+          !approvalController.has({ origin: 'bar.baz' }) &&
+          !approvalController.store.getState()[STORE_KEY].foo
         ),
         'should have deleted entry',
       )
     })
 
     it('deletes one entry out of many without side-effects', function () {
-      approvalController.add('foo', 'bar.baz')
-      approvalController.add('fizz', 'bar.baz', 'myType')
+      approvalController.add({ id: 'foo', origin: 'bar.baz' })
+      approvalController.add({ id: 'fizz', origin: 'bar.baz', type: 'myType' })
 
       approvalController._delete('fizz')
 
@@ -336,7 +413,7 @@ describe('approval controller', function () {
     })
 
     it('does nothing when deleting non-existing entry', function () {
-      approvalController.add('foo', 'bar.baz')
+      approvalController.add({ id: 'foo', origin: 'bar.baz' })
 
       assert.doesNotThrow(
         () => approvalController._delete('fizz'),
@@ -381,7 +458,7 @@ describe('approval controller', function () {
     it('resolves approval promise', async function () {
       numDeletions = 1
 
-      const approvalPromise = approvalController.add('foo', 'bar.baz')
+      const approvalPromise = approvalController.add({ id: 'foo', origin: 'bar.baz' })
       approvalController.resolve('foo', 'success')
 
       const result = await approvalPromise
@@ -394,8 +471,8 @@ describe('approval controller', function () {
     it('resolves multiple approval promises out of order', async function () {
       numDeletions = 2
 
-      const approvalPromise1 = approvalController.add('foo1', 'bar.baz')
-      const approvalPromise2 = approvalController.add('foo2', 'bar.baz', 'myType2')
+      const approvalPromise1 = approvalController.add({ id: 'foo1', origin: 'bar.baz' })
+      const approvalPromise2 = approvalController.add({ id: 'foo2', origin: 'bar.baz', type: 'myType2' })
 
       approvalController.resolve('foo2', 'success2')
 
@@ -444,7 +521,7 @@ describe('approval controller', function () {
       numDeletions = 1
 
       const approvalPromise = assert.rejects(
-        () => approvalController.add('foo', 'bar.baz'),
+        () => approvalController.add({ id: 'foo', origin: 'bar.baz' }),
         getError('failure'),
         'should reject with expected error',
       )
@@ -457,12 +534,12 @@ describe('approval controller', function () {
       numDeletions = 2
 
       const rejectionPromise1 = assert.rejects(
-        () => approvalController.add('foo1', 'bar.baz'),
+        () => approvalController.add({ id: 'foo1', origin: 'bar.baz' }),
         getError('failure1'),
         'should reject with expected error',
       )
       const rejectionPromise2 = assert.rejects(
-        () => approvalController.add('foo2', 'bar.baz', 'myType2'),
+        () => approvalController.add({ id: 'foo2', origin: 'bar.baz', type: 'myType2' }),
         getError('failure2'),
         'should reject with expected error',
       )
@@ -489,15 +566,15 @@ describe('approval controller', function () {
       const approvalController = new ApprovalController()
       sinon.spy(approvalController, '_delete')
 
-      const promise1 = approvalController.add('foo1', 'bar.baz')
-      const promise2 = approvalController.add('foo2', 'bar.baz', 'myType2')
+      const promise1 = approvalController.add({ id: 'foo1', origin: 'bar.baz' })
+      const promise2 = approvalController.add({ id: 'foo2', origin: 'bar.baz', type: 'myType2' })
       const promise3 = assert.rejects(
-        () => approvalController.add('foo3', 'fizz.buzz'),
+        () => approvalController.add({ id: 'foo3', origin: 'fizz.buzz' }),
         getError('failure3'),
         'should reject with expected error',
       )
       const promise4 = assert.rejects(
-        () => approvalController.add('foo4', 'bar.baz', 'myType4'),
+        () => approvalController.add({ id: 'foo4', origin: 'bar.baz', type: 'myType4' }),
         getError('failure4'),
         'should reject with expected error',
       )
@@ -574,15 +651,15 @@ describe('approval controller', function () {
 
       const clearPromise = Promise.all([
         assert.rejects(
-          () => approvalController.add('foo1', 'bar.baz'),
+          () => approvalController.add({ id: 'foo1', origin: 'bar.baz' }),
           'every approval promise should reject',
         ),
         assert.rejects(
-          () => approvalController.add('foo2', 'bar.baz', 'myType'),
+          () => approvalController.add({ id: 'foo2', origin: 'bar.baz', type: 'myType' }),
           'every approval promise should reject',
         ),
         assert.rejects(
-          () => approvalController.add('foo3', 'fizz.buzz', 'myType'),
+          () => approvalController.add({ id: 'foo3', origin: 'fizz.buzz', type: 'myType' }),
           'every approval promise should reject',
         ),
       ])
@@ -598,6 +675,10 @@ describe('approval controller', function () {
         Object.keys(approvalController._origins).length, 0,
         '_origins should be empty',
       )
+      assert.deepEqual(
+        approvalController.store.getState()[STORE_KEY], {},
+        'store should be empty',
+      )
     })
   })
 })
@@ -608,8 +689,16 @@ function getNoFalsyTypeError (code) {
   return getError('May not specify falsy type.', code)
 }
 
-function getMissingIdAndOriginError () {
-  return getError('Must specify id and origin.', ERROR_CODES.rpc.internal)
+function getNoFalsyIdError () {
+  return getError('May not specify falsy id.', ERROR_CODES.rpc.internal)
+}
+
+function getMissingOriginError () {
+  return getError('Must specify origin.', ERROR_CODES.rpc.internal)
+}
+
+function getInvalidRequestDataError () {
+  return getError('Request data must be a plain object if specified.', ERROR_CODES.rpc.internal)
 }
 
 function getIdCollisionError (id) {

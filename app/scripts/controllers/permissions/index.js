@@ -688,11 +688,11 @@ export class PermissionsController {
       requestUserApproval: async (req) => {
         const { metadata: { id, origin } } = req
 
-        return this.approvals.addAndShowApprovalRequest(
+        return this.approvals.addAndShowApprovalRequest({
           id,
           origin,
-          APPROVAL_TYPE,
-        )
+          type: APPROVAL_TYPE,
+        })
       },
     }, initState)
   }

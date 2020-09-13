@@ -41,7 +41,7 @@ const initPermController = () => {
 }
 
 const createApprovalSpies = (permController) => {
-  sinon.spy(permController.approvals, 'add')
+  sinon.spy(permController.approvals, '_add')
 }
 
 const getNextApprovalId = (permController) => {
@@ -90,7 +90,7 @@ describe('permissions middleware', function () {
       await userApprovalPromise
 
       assert.ok(
-        permController.approvals.add.calledOnce,
+        permController.approvals._add.calledOnce,
         'should have added single approval request',
       )
 
@@ -286,7 +286,7 @@ describe('permissions middleware', function () {
       await userApprovalPromise
 
       assert.ok(
-        permController.approvals.add.calledOnce,
+        permController.approvals._add.calledOnce,
         'should have added single approval request',
       )
 
@@ -339,7 +339,7 @@ describe('permissions middleware', function () {
       )
 
       assert.ok(
-        permController.approvals.add.notCalled,
+        permController.approvals._add.notCalled,
         'no approval requests should have been added',
       )
 
@@ -399,7 +399,7 @@ describe('permissions middleware', function () {
       await userApprovalPromise
 
       assert.ok(
-        permController.approvals.add.calledTwice,
+        permController.approvals._add.calledTwice,
         'should have added two approval requests',
       )
 
@@ -433,12 +433,12 @@ describe('permissions middleware', function () {
       )
 
       assert.equal(
-        permController.approvals.add.callCount, 3,
+        permController.approvals._add.callCount, 3,
         'should have attempted to create three pending approvals',
       )
       assert.equal(
         permController.approvals._approvals.size, 2,
-        'should only have created two pending approvals'
+        'should only have created two pending approvals',
       )
 
       // now, remaining pending requests should be approved without issue
@@ -609,7 +609,7 @@ describe('permissions middleware', function () {
       await userApprovalPromise
 
       assert.ok(
-        permController.approvals.add.calledOnce,
+        permController.approvals._add.calledOnce,
         'should have added single approval request',
       )
 
@@ -675,7 +675,7 @@ describe('permissions middleware', function () {
       await userApprovalPromise
 
       assert.ok(
-        permController.approvals.add.calledOnce,
+        permController.approvals._add.calledOnce,
         'should have added single approval request',
       )
 

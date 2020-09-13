@@ -1,8 +1,9 @@
 import { ethErrors } from 'eth-json-rpc-errors'
+import nanoid from 'nanoid'
+import ObservableStore from 'obs-store'
 
 const DEFAULT_TYPE = Symbol('DEFAULT_APPROVAL_TYPE')
-const APPROVAL_INFO_KEY = Symbol('APPROVAL_INFO_KEY')
-const APPROVAL_CALLBACKS_KEY = Symbol('APPROVAL_CALLBACKS_KEY')
+const STORE_KEY = 'pendingApprovals'
 
 const getAlreadyPendingMessage = (origin, type) => (
   `Request ${type === DEFAULT_TYPE ? '' : `of type '${type}' `}already pending for origin ${origin}. Please wait.`
@@ -14,6 +15,8 @@ const getAlreadyPendingMessage = (origin, type) => (
  * @property {string} origin - The origin of the approval request.
  * @property {string} [type] - The type associated with the approval request,
  * if any.
+ * @property {Object} requestData - The request data associated with the
+ * approval request, if any.
  */
 
 /**
@@ -40,6 +43,8 @@ export default class ApprovalController {
 
     /** @private */
     this._showApprovalRequest = showApprovalRequest
+
+    this.store = new ObservableStore({ [STORE_KEY]: {} })
   }
 
   /**
@@ -50,14 +55,18 @@ export default class ApprovalController {
    * There can only be one approval per origin and type. An error is thrown if
    * attempting
    *
-   * @param {string} id - The id of the approval request.
-   * @param {string} origin - The origin of the approval request.
-   * @param {string} [type] - The type associated with the approval request,
+   * @param {Object} opts - Options bag.
+   * @param {string} opts.[id] - The id of the approval request. A random id
+   * will be generated if none is provided.
+   * @param {string} opts.origin - The origin of the approval request.
+   * @param {string} opts.[type] - The type associated with the approval request,
    * if applicable.
+   * @param {Object} opts.[requestData] - The request data associated with the
+   * approval request.
    * @returns {Promise} The approval promise.
    */
-  addAndShowApprovalRequest (id, origin, type = DEFAULT_TYPE) {
-    const promise = this.add(id, origin, type)
+  addAndShowApprovalRequest ({ id, origin, type, requestData } = {}) {
+    const promise = this._add(id, origin, type, requestData)
     this._showApprovalRequest()
     return promise
   }
@@ -70,44 +79,18 @@ export default class ApprovalController {
    * There can only be one approval per origin and type. An error is thrown if
    * attempting
    *
-   * @param {string} id - The id of the approval request.
-   * @param {string} origin - The origin of the approval request.
-   * @param {string} [type] - The type associated with the approval request,
+   * @param {Object} opts - Options bag.
+   * @param {string} opts.[id] - The id of the approval request. A random id
+   * will be generated if none is provided.
+   * @param {string} opts.origin - The origin of the approval request.
+   * @param {string} opts.[type] - The type associated with the approval request,
    * if applicable.
+   * @param {Object} opts.[requestData] - The request data associated with the
+   * approval request.
    * @returns {Promise} The approval promise.
    */
-  add (id, origin, type = DEFAULT_TYPE) {
-    this._validateAddParams(id, origin, type)
-
-    if (this._origins[origin]?.[type]) {
-      throw ethErrors.rpc.resourceUnavailable(
-        getAlreadyPendingMessage(origin, type),
-      )
-    }
-
-    // add pending approval
-    return new Promise((resolve, reject) => {
-      this._approvals.set(id, {
-        [APPROVAL_INFO_KEY]: { origin, type },
-        [APPROVAL_CALLBACKS_KEY]: { resolve, reject },
-      })
-      this._addPendingApprovalOrigin(origin, type)
-    })
-  }
-
-  _validateAddParams (id, origin, type) {
-    let errorMessage = null
-    if (!id || !origin) {
-      errorMessage = 'Must specify id and origin.'
-    } else if (this._approvals.has(id)) {
-      errorMessage = `Approval with id '${id}' already exists.`
-    } else if (!type) {
-      errorMessage = 'May not specify falsy type.'
-    }
-
-    if (errorMessage) {
-      throw ethErrors.rpc.internal(errorMessage)
-    }
+  add ({ id, origin, type, requestData } = {}) {
+    return this._add(id, origin, type, requestData)
   }
 
   /**
@@ -118,13 +101,10 @@ export default class ApprovalController {
    * the id.
    */
   get (id) {
-    const info = this._approvals.get(id)?.[APPROVAL_INFO_KEY]
-    if (info) {
-      return info.type === DEFAULT_TYPE
-        ? { origin: info.origin }
-        : { ...info }
-    }
-    return undefined
+    const info = this.store.getState()[STORE_KEY][id]
+    return info
+      ? { ...info }
+      : undefined
   }
 
   /**
@@ -181,6 +161,67 @@ export default class ApprovalController {
       this.reject(id)
     }
     this._origins = {}
+    this.store.putState({ [STORE_KEY]: {} })
+  }
+
+  /**
+   * Implementation of add operation.
+   *
+   * @private
+   * @param {string} [id] - The id of the approval request.
+   * @param {string} origin - The origin of the approval request.
+   * @param {string} [type] - The type associated with the approval request,
+   * if applicable.
+   * @param {Object} [requestData] - The request data associated with the
+   * approval request.
+   * @returns {Promise} The approval promise.
+   */
+  _add (id = nanoid(), origin, type = DEFAULT_TYPE, requestData) {
+    this._validateAddParams(id, origin, type, requestData)
+
+    if (this._origins[origin]?.[type]) {
+      throw ethErrors.rpc.resourceUnavailable(
+        getAlreadyPendingMessage(origin, type),
+      )
+    }
+
+    // add pending approval
+    return new Promise((resolve, reject) => {
+      this._approvals.set(id, { resolve, reject })
+      this._addPendingApprovalOrigin(origin, type)
+      this._addToStore(id, origin, type, requestData)
+    })
+  }
+
+  /**
+   * Validates parameters to the add method.
+   *
+   * @private
+   * @param {string} id - The id of the approval request.
+   * @param {string} origin - The origin of the approval request.
+   * @param {string} type - The type associated with the approval request.
+   * @param {Object} [requestData] - The request data associated with the
+   * approval request.
+   */
+  _validateAddParams (id, origin, type, requestData) {
+    let errorMessage = null
+    if (!id && id !== undefined) {
+      errorMessage = 'May not specify falsy id.'
+    } else if (!origin) {
+      errorMessage = 'Must specify origin.'
+    } else if (this._approvals.has(id)) {
+      errorMessage = `Approval with id '${id}' already exists.`
+    } else if (!type) {
+      errorMessage = 'May not specify falsy type.'
+    } else if (requestData && (
+      typeof requestData !== 'object' || Array.isArray(requestData)
+    )) {
+      errorMessage = 'Request data must be a plain object if specified.'
+    }
+
+    if (errorMessage) {
+      throw ethErrors.rpc.internal(errorMessage)
+    }
   }
 
   /**
@@ -200,16 +241,31 @@ export default class ApprovalController {
   }
 
   /**
-   * Gets the pending approval callbacks for the given id.
+   * Adds an entry to the store.
    * Performs no validation.
    *
    * @private
    * @param {string} id - The id of the approval request.
-   * @returns {Object|undefined} An object with the approval's resolve and reject
-   * callbacks.
+   * @param {string} origin - The origin of the approval request.
+   * @param {string} type - The type associated with the approval request.
+   * @param {Object} [requestData] - The request data associated with the
+   * approval request.
    */
-  _getApprovalCallbacks (id) {
-    return this._approvals.get(id)[APPROVAL_CALLBACKS_KEY]
+  _addToStore (id, origin, type, requestData) {
+    const info = { origin }
+    if (type !== DEFAULT_TYPE) {
+      info.type = type
+    }
+    if (requestData) {
+      info.requestData = requestData
+    }
+
+    this.store.putState({
+      [STORE_KEY]: {
+        ...this.store.getState()[STORE_KEY],
+        [id]: info,
+      },
+    })
   }
 
   /**
@@ -226,18 +282,26 @@ export default class ApprovalController {
       throw new Error('Expected id to be specified.')
     }
 
-    const {
-      origin,
-      type,
-    } = this._approvals.get(id)?.[APPROVAL_INFO_KEY] || {}
+    if (this._approvals.has(id)) {
+      this._approvals.delete(id)
 
-    if (origin && type) {
+      const state = this.store.getState()[STORE_KEY]
+      const {
+        origin,
+        type = DEFAULT_TYPE,
+      } = state[id] || {}
+
       delete this._origins[origin]?.[type]
       if (this._isEmptyOrigin(origin)) {
         delete this._origins[origin]
       }
+
+      const newState = { ...state }
+      delete newState[id]
+      this.store.putState({
+        [STORE_KEY]: newState,
+      })
     }
-    this._approvals.delete(id)
   }
 
   /**
@@ -254,7 +318,7 @@ export default class ApprovalController {
     if (!this._approvals.has(id)) {
       throw new Error(`Approval with id '${id}' not found.`)
     }
-    const callbacks = this._getApprovalCallbacks(id)
+    const callbacks = this._approvals.get(id)
     this._delete(id)
     return callbacks
   }

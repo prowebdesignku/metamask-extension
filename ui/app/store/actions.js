@@ -2325,6 +2325,28 @@ export function clearPermissions () {
   }
 }
 
+// Pending Approvals
+
+/**
+ * @param {string} id
+ * @param {any} [value]
+ */
+export function resolvePendingApproval (id, value) {
+  return () => {
+    background.resolvePendingApproval(id, value)
+  }
+}
+
+/**
+ * @param {string} id
+ * @param {Error} [error]
+ */
+export function rejectPendingApproval (id, error) {
+  return () => {
+    background.rejectPendingApproval(id, error)
+  }
+}
+
 export function setFirstTimeFlowType (type) {
   return (dispatch) => {
     log.debug(`background.setFirstTimeFlowType`)

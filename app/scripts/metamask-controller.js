@@ -459,6 +459,7 @@ export default class MetamaskController extends EventEmitter {
    */
   getApi () {
     const {
+      approvalController,
       keyringController,
       networkController,
       onboardingController,
@@ -620,6 +621,10 @@ export default class MetamaskController extends EventEmitter {
       setInitialGasEstimate: nodeify(swapsController.setInitialGasEstimate, swapsController),
       setCustomApproveTxData: nodeify(swapsController.setCustomApproveTxData, swapsController),
       setSwapsLiveness: nodeify(swapsController.setSwapsLiveness, swapsController),
+
+      // approval controller
+      resolvePendingApproval: approvalController.resolve.bind(approvalController),
+      rejectPendingApproval: approvalController.reject.bind(approvalController),
     }
   }
 

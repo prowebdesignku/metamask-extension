@@ -252,7 +252,7 @@ export default class ApprovalController {
    * approval request.
    */
   _addToStore (id, origin, type, requestData) {
-    const info = { origin }
+    const info = { id, origin }
     // default type is for internal bookkeeping only
     if (type !== DEFAULT_TYPE) {
       info.type = type

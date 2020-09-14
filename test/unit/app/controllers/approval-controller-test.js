@@ -30,7 +30,7 @@ describe('approval controller', function () {
       )
       assert.deepEqual(
         approvalController.store.getState()[STORE_KEY],
-        { 'foo': { origin: 'bar.baz' } },
+        { 'foo': { id: 'foo', origin: 'bar.baz' } },
         'should have added entry to store',
       )
     })
@@ -63,7 +63,7 @@ describe('approval controller', function () {
       )
       assert.deepEqual(
         approvalController.store.getState()[STORE_KEY],
-        { 'foo': { origin: 'bar.baz', type: 'myType' } },
+        { 'foo': { id: 'foo', origin: 'bar.baz', type: 'myType' } },
         'should have added entry to store',
       )
     })
@@ -244,7 +244,7 @@ describe('approval controller', function () {
       approvalController.add({ id: 'foo', origin: 'bar.baz' })
 
       assert.deepEqual(
-        approvalController.get('foo'), { origin: 'bar.baz' },
+        approvalController.get('foo'), { id: 'foo', origin: 'bar.baz' },
         'should retrieve expected entry',
       )
     })
@@ -253,7 +253,7 @@ describe('approval controller', function () {
       approvalController.add({ id: 'foo', origin: 'bar.baz', type: 'myType' })
 
       assert.deepEqual(
-        approvalController.get('foo'), { origin: 'bar.baz', type: 'myType' },
+        approvalController.get('foo'), { id: 'foo', origin: 'bar.baz', type: 'myType' },
         'should retrieve expected entry',
       )
     })

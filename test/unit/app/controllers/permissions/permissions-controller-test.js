@@ -59,6 +59,15 @@ const initPermController = (notifications = initNotifications()) => {
 
 describe('permissions controller', function () {
 
+  describe('constructor', function () {
+    it('throws on undefined argument', function () {
+      assert.throws(
+        () => new PermissionsController(),
+        'should throw on undefined argument',
+      )
+    })
+  })
+
   describe('getAccounts', function () {
 
     let permController

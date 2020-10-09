@@ -24,6 +24,9 @@ import {
   CAVEAT_TYPES,
 } from './enums'
 
+// instanbul ignore next
+const noop = () => undefined
+
 export class PermissionsController {
 
   constructor (
@@ -35,7 +38,7 @@ export class PermissionsController {
       notifyDomain,
       notifyAllDomains,
       preferences,
-    } = {},
+    },
     restoredPermissions = {},
     restoredState = {},
   ) {
@@ -132,7 +135,7 @@ export class PermissionsController {
       const req = { method: 'eth_accounts' }
       const res = {}
       this.permissions.providerMiddlewareFunction(
-        { origin }, req, res, () => undefined, _end,
+        { origin }, req, res, noop, _end,
       )
 
       function _end () {
@@ -187,7 +190,7 @@ export class PermissionsController {
       const res = {}
 
       this.permissions.providerMiddlewareFunction(
-        domain, req, res, () => undefined, _end,
+        domain, req, res, noop, _end,
       )
 
       function _end (_err) {

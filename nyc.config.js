@@ -3,4 +3,8 @@ module.exports = {
   lines: 95,
   functions: 95,
   statements: 95,
+  exclude: [
+    'development/**',
+    'test/**',
+  ],
 }

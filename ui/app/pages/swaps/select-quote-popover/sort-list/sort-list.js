@@ -128,7 +128,7 @@ export default function SortList ({
                   'select-quote-popover__quote-source-label--blue': quoteSource === 'DEX',
                 })}
               >
-                {quoteSource}
+                {aggId}
               </div>
             </div>
             <div
